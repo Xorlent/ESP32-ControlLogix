@@ -1,8 +1,9 @@
 # ESP32ControlLogix - Native EtherNet/IP + CIP Client for ControlLogix
 
-> **Note:** This library is currently untested against real ControlLogix
+> [!CAUTION]
+> _DO NOT USE THIS LIBRARY IN PRODUCTION._  This library is currently untested against ControlLogix
 > hardware. It is under active development and has only been validated against the
-> synthetic EtherNet/IP server found in /tools.  _DO NOT USE THIS LIBRARY IN PRODUCTION._
+> synthetic EtherNet/IP server found in /tools.
 
 A lightweight, fully non-blocking EtherNet/IP and CIP (Common Industrial Protocol) client for the ESP32, purpose-built to talk to Allen-Bradley/Rockwell ControlLogix and compatible Logix controllers. No external dependencies, bounded memory, and a simple, easy-to-understand API.
 
