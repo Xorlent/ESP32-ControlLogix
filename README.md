@@ -5,7 +5,7 @@
 > hardware. It is under active development and has only been validated against the
 > synthetic EtherNet/IP server found in /tools.
 
-A lightweight, fully non-blocking EtherNet/IP and CIP (Common Industrial Protocol) client for the ESP32, purpose-built to talk to Allen-Bradley/Rockwell ControlLogix and compatible Logix controllers. No external dependencies, bounded memory, and a simple, easy-to-understand API.
+A lightweight, non-blocking EtherNet/IP and CIP (Common Industrial Protocol) client for the ESP32, purpose-built to talk to Allen-Bradley/Rockwell ControlLogix and compatible Logix controllers. No external dependencies, bounded memory, and a simple API.
 
 ## Table of Contents
 
