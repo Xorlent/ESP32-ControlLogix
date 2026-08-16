@@ -34,15 +34,15 @@ A lightweight, non-blocking EtherNet/IP and CIP (Common Industrial Protocol) cli
 
 ## Features
 
-- **Simple & Beginner-Friendly** : Clean, well-documented API with a single top-level `PlcClient` facade plus lower-level building blocks.
+- **Simple & Beginner-Friendly** : Simple API with a single top-level `PlcClient`.
 - **Fully Non-Blocking** : No public call waits on network, socket, or PLC progress. `begin()`/`connect()`/`read()`/`write()` start work and return immediately; `poll()` advances everything.
-- **Bounded Memory** : Fixed-size tag pool and reusable packet buffers - no heap allocation after construction, no per-request heap growth.
+- **Bounded Memory** : Fixed-size tag pool and reusable packet buffers.
 - **Native Protocol Stack** : EtherNet/IP encapsulation, CIP explicit messaging, connected (Forward Open / SendUnitData) and unconnected (SendRRData) messaging.
 - **Symbolic Logix Tags** : Read and write symbolic tags with typed accessors for scalars, arrays, and strings.
 - **Callbacks** : Optional tag-completion and connection-state callbacks for event-driven integration.
 - **Reconnect & Recovery** : Handles timeouts, disconnects, stale responses, and PLC restarts.
-- **Transport-Independent** : Session and CIP logic are decoupled from the underlying transport (Wi-Fi or W5500 Ethernet).
-- **Testable** : Includes a host-side synthetic EtherNet/IP server for development without hardware.
+- **Transport-Independent** : Session and CIP logic are decoupled from the underlying transport (Wi-Fi or Ethernet).
+- **Testable** : Includes a host-side Python-based synthetic EtherNet/IP server for validation without hardware.
 
 ## Supported Data Types
 
