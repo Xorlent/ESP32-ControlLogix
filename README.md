@@ -109,7 +109,7 @@ void loop() {
 
     if (plc.ready() && !started) {
         started = true;
-        tag = plc.createTag("MyTag", 1);                   // allocate a tag
+        tag = plc.createTag("MyTag");                   // allocate a tag (1 element)
         plc.read(tag, 5000);                               // start a read
     }
 
@@ -142,7 +142,7 @@ class PlcClient {
     Status poll();                                     // advance everything
     Status disconnect();                               // graceful disconnect
 
-    int    createTag(const char *name, uint32_t elementCount); // >=0 handle, or negative Status
+    int    createTag(const char *name, uint32_t elementCount = 1); // >=0 handle, or negative Status
     Status destroyTag(int handle);
     Status read(int handle, uint32_t timeoutMs);
     Status write(int handle, uint32_t timeoutMs);
