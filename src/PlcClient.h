@@ -43,7 +43,7 @@ using StateCallback = void (*)(Status status, void *userData);
  *   plc.begin(cfg);                       // start Ethernet
  *   plc.connect(ip, 44818, 5000);         // queue TCP + RegisterSession
  *   while (!plc.ready()) plc.poll();      // advance until connected
- *   int t = plc.createTag("MyTag", 1);    // allocate a tag
+ *   int t = plc.createTag("MyTag");        // allocate a tag (1 element)
  *   plc.read(t, 5000);                    // start a read
  *   while (plc.tagStatus(t) == Status::Pending) plc.poll();
  *   int32_t v = plc.tag(t)->getInt32(0);  // read the value
@@ -77,9 +77,10 @@ public:
 
     // --- Tag registry (bounded) ---
 
-    // Allocate a tag for the named symbolic tag. Returns a handle >= 0, or a
-    // negative Status (NoMemory if the pool is exhausted).
-    int createTag(const char *name, uint32_t elementCount);
+    // Allocate a tag for the named symbolic tag. elementCount defaults to 1
+    // (a single element). Returns a handle >= 0, or a negative Status
+    // (NoMemory if the pool is exhausted).
+    int createTag(const char *name, uint32_t elementCount = 1);
 
     // Free a tag. Returns Ok, or InvalidArg if the handle is invalid.
     Status destroyTag(int handle);
