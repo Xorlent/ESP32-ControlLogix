@@ -108,9 +108,12 @@ void loop() {
     plc.poll();                                            // advance everything
 
     if (plc.ready() && !started) {
-        started = true;
-        tag = plc.createTag("MyTag");                   // allocate a tag (1 element)
-        plc.read(tag, 5000);                               // start a read
+        tag = plc.createTag("MyTag");                      // allocate a tag (1 element)
+        if (tag >= 0) {                                    // check for a valid handle
+            started = true;
+            plc.read(tag, 5000);                           // start a read
+        }
+        // else: pool exhausted (NoMemory) or bad name (InvalidArg) - retry later
     }
 
     if (started && plc.tagStatus(tag) == clx::Status::Ok) {
@@ -120,7 +123,7 @@ void loop() {
         started = false;
     }
 
-    delay(10);
+    delay(10); // Do other work...
 }
 ```
 
