@@ -93,6 +93,12 @@ Status Connection::startClose(TcpConnection &conn, uint32_t sessionHandle, uint3
     data[0] = uint8_t(pathLen / 2);  // connection path size (words)
     size_t d = 1 + pathLen;
 
+    // Forward Close also carries the connection identity (matching Forward
+    // Open) so the target can identify the connection being closed.
+    putU16(data + d, 1); d += 2;               // connection serial number
+    putU16(data + d, 0x0001); d += 2;          // originator vendor ID
+    putU32(data + d, 0x00000001); d += 4;      // originator serial number
+
     Status st = fwd_.send(conn, sessionHandle, 0x4E, reqPath, sizeof(reqPath), data, d, timeoutMs);
     if (st != Status::Pending) {
         return st;
