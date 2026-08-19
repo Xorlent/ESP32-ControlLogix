@@ -9,6 +9,7 @@
 #include "transport/Client.h"
 #include "transport/TcpConnection.h"
 #include "eip/Session.h"
+#include "cip/ExplicitMessage.h"
 #include "tag/Tag.h"
 
 // Maximum number of simultaneous tags (bounded pool). Override by defining
@@ -37,6 +38,11 @@ using StateCallback = void (*)(Status status, void *userData);
  * Bounded resources: the tag pool is a fixed array (kMaxTags). createTag()
  * returns a defined error when the pool is exhausted, and never leaves a
  * partially-registered tag. There is no heap allocation after construction.
+ *
+ * Single in-flight: only one tag read/write runs at a time. read()/write()
+ * return Busy while another operation is in flight, so the shared connection
+ * is never contended. Wait for the current operation to complete (tagStatus()
+ * != Pending) before starting the next.
  *
  * Usage:
  *   PlcClient plc;
@@ -69,7 +75,7 @@ public:
     // begins once Ethernet is ready (advanced by poll()).
     Status connect(const IPAddress &ip, uint16_t port, uint32_t timeoutMs);
 
-    // Advance Ethernet, connection, session, and all in-flight tags.
+    // Advance Ethernet, connection, session, and the in-flight tag (at most one).
     Status poll();
 
     // Begin a graceful disconnect (UnregisterSession + close).
@@ -87,7 +93,9 @@ public:
 
     // --- Tag operations ---
 
-    // Start a read/write on a tag. Returns Pending while in flight.
+    // Start a read/write on a tag. Returns Pending while in flight, or Busy if
+    // another tag operation is already in flight (single in-flight convention:
+    // wait for the current operation to complete before starting another).
     Status read(int handle, uint32_t timeoutMs);
     Status write(int handle, uint32_t timeoutMs);
 
@@ -130,6 +138,7 @@ private:
     Client eth_;
     TcpConnection tcp_;
     Session session_;
+    ExplicitMessage msg_;  // single shared message (one tag operation at a time)
     State state_ = State::Idle;
 
     IPAddress remoteIp_;
@@ -152,6 +161,9 @@ private:
     void *stateUserData_ = nullptr;
 
     int findFreeTag() const;
+
+    // True if any allocated tag currently has a read/write in flight.
+    bool anyTagBusy() const;
 
     // True if handle is a currently-allocated tag index.
     bool validHandle(int handle) const;

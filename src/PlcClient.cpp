@@ -128,7 +128,7 @@ Status PlcClient::poll() {
                     continue;
                 }
                 Status prev = tagPrevStatus_[i];
-                Status st = tags_[i].poll();
+                Status st = tags_[i].poll(msg_);
                 tagPrevStatus_[i] = st;
                 if (st == Status::Closed) {
                     disconnected = true;  // connection lost (PLC restart / drop)
@@ -199,7 +199,10 @@ Status PlcClient::read(int handle, uint32_t timeoutMs) {
     if (state_ != State::Ready) {
         return Status::NotReady;
     }
-    return tags_[handle].read(tcp_, session_.handle(), tagNames_[handle],
+    if (anyTagBusy()) {
+        return Status::Busy;  // single in-flight: one tag operation at a time
+    }
+    return tags_[handle].read(msg_, tcp_, session_.handle(), tagNames_[handle],
                               tagElemCount_[handle], timeoutMs);
 }
 
@@ -210,7 +213,10 @@ Status PlcClient::write(int handle, uint32_t timeoutMs) {
     if (state_ != State::Ready) {
         return Status::NotReady;
     }
-    return tags_[handle].write(tcp_, session_.handle(), tagNames_[handle],
+    if (anyTagBusy()) {
+        return Status::Busy;  // single in-flight: one tag operation at a time
+    }
+    return tags_[handle].write(msg_, tcp_, session_.handle(), tagNames_[handle],
                                tagElemCount_[handle], timeoutMs);
 }
 
@@ -232,7 +238,7 @@ Status PlcClient::abortTag(int handle) {
     if (!validHandle(handle)) {
         return Status::InvalidArg;
     }
-    tags_[handle].abort();
+    tags_[handle].abort(msg_);
     tagPrevStatus_[handle] = Status::NotReady;
     return Status::Ok;
 }
@@ -272,6 +278,15 @@ int PlcClient::findFreeTag() const {
         }
     }
     return -1;
+}
+
+bool PlcClient::anyTagBusy() const {
+    for (size_t i = 0; i < kMaxTags; ++i) {
+        if (inUse_[i] && tags_[i].status() == Status::Pending) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool PlcClient::validHandle(int handle) const {
