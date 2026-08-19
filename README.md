@@ -37,6 +37,7 @@ A lightweight, non-blocking EtherNet/IP and CIP (Common Industrial Protocol) cli
 - **Simple & Beginner-Friendly** : Simple API with a single top-level `PlcClient`.
 - **Fully Non-Blocking** : No public call waits on network, socket, or PLC progress. `begin()`/`connect()`/`read()`/`write()` start work and return immediately; `poll()` advances everything.
 - **Bounded Memory** : Fixed-size tag pool and reusable packet buffers.
+- **Single In-Flight Operation** : One tag read/write at a time. `read()`/`write()` return `Busy` while another operation is in flight, so the shared connection is never contended.
 - **Native Protocol Stack** : EtherNet/IP encapsulation, CIP explicit messaging, connected (Forward Open / SendUnitData) and unconnected (SendRRData) messaging.
 - **Symbolic Logix Tags** : Read and write symbolic tags with typed accessors for scalars, arrays, and strings.
 - **Callbacks** : Optional tag-completion and connection-state callbacks for event-driven integration.
@@ -162,24 +163,26 @@ class PlcClient {
 };
 ```
 
+> **Single in-flight:** `read()`/`write()` return `Busy` while another tag operation is in flight. Drive one operation at a time — wait for `tagStatus()` to leave `Pending` (or chain from the tag callback) before starting the next.
+
 Callbacks:
 - `TagCallback` : `void (*)(int handle, Status status, void *userData)` - invoked once when a tag's read/write completes.
 - `StateCallback` : `void (*)(Status status, void *userData)` - invoked on connect (`Ok`) and disconnect (`Closed`).
 
 ### Tag
 
-A single Logix tag: symbolic name, typed data buffer, and non-blocking Read Tag (`0x4C`) / Write Tag (`0x4D`) over unconnected messaging.
+A single Logix tag: symbolic name, typed data buffer, and non-blocking Read Tag (`0x4C`) / Write Tag (`0x4D`) over unconnected messaging. The `ExplicitMessage` is supplied by the caller (not owned by `Tag`), so many tags can share one message — only one operation runs at a time.
 
 ```cpp
 class Tag {
     static constexpr size_t kMaxDataSize = 256;
 
-    Status read(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                uint32_t elementCount, uint32_t timeoutMs);
-    Status write(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                 uint32_t elementCount, uint32_t timeoutMs);
-    Status poll();
-    void   abort();
+    Status read(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                const char *name, uint32_t elementCount, uint32_t timeoutMs);
+    Status write(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                 const char *name, uint32_t elementCount, uint32_t timeoutMs);
+    Status poll(ExplicitMessage &msg);
+    void   abort(ExplicitMessage &msg);
     Status status() const;
 
     uint8_t        dataType() const;
@@ -407,7 +410,7 @@ Application / public tag API (PlcClient, Tag)
         |
 Tag registry and lifecycle manager
         |
-Request scheduler and bounded transaction pool
+Single in-flight transaction (one tag operation at a time)
         |
 EtherNet/IP session manager (Session)
         |
@@ -430,16 +433,34 @@ Key design goals:
 
 - **Bounded tag pool** : `kMaxTags` (default 8) simultaneous tags; `createTag()` returns `NoMemory` when exhausted. Override via `ESP32_CONTROLLOGIX_MAX_TAGS`.
 - **Bounded buffer** : Tag data is capped at 256 bytes
+- **Single in-flight** : Only one tag read/write runs at a time (no pipelining). `read()`/`write()` return `Busy` while another operation is in flight.
 - **Static IP** : The current transport targets static IPv4 configuration; DHCP is not yet wired into the public API.
 
 ## Best Practices
 
 - **Poll in a loop** : Drive everything with `poll()`; never assume a call completes synchronously.
 - **Check return values** : Always verify `Status` codes - `Pending` means "call again", negative values are failures.
+- **One operation at a time** : `read()`/`write()` return `Busy` while another operation is in flight. Serialize tag operations — wait for completion (or chain from the tag callback) before starting the next.
 - **Respect the tag pool** : `destroyTag()` handles you no longer need to avoid exhausting `kMaxTags`.
 - **Verify writes** : Read back after a write to confirm the PLC accepted the value.
 - **Use callbacks** : Prefer `setTagCallback`/`setStateCallback` for event-driven designs instead of tight polling.
 - **Set timeouts** : Every operation takes a `timeoutMs` deadline; choose values appropriate to your network.
+
+Reading several tags one at a time (single in-flight) — callback style:
+
+```cpp
+int handles[3];
+size_t cursor = 0;
+
+void onTag(int handle, clx::Status st, void *ud) {
+    (void)handle; (void)st; (void)ud;
+    if (++cursor < 3) plc.read(handles[cursor], 5000);  // chain the next read
+}
+
+// after connect + createTag() for each name:
+plc.setTagCallback(onTag, nullptr);
+plc.read(handles[0], 5000);   // start the first; the callback chains the rest
+```
 
 ## Troubleshooting
 
@@ -461,4 +482,5 @@ Key design goals:
 
 ## Version History
 
+- **0.1.1** : Enforce a single in-flight tag operation (`read()`/`write()` return `Busy` while another is active); `Tag` now takes a shared, caller-supplied `ExplicitMessage`
 - **0.1.0** : Initial release.
