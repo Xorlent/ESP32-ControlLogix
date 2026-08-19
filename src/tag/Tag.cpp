@@ -11,19 +11,19 @@ Tag::~Tag() {
     state_ = State::Idle;
 }
 
-Status Tag::read(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                 uint32_t elementCount, uint32_t timeoutMs) {
+Status Tag::read(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                 const char *name, uint32_t elementCount, uint32_t timeoutMs) {
     if (name == nullptr || strlen(name) > kMaxSymbolicName) {
         return Status::InvalidArg;
     }
     if (state_ == State::Reading || state_ == State::Writing) {
         return Status::Busy;
     }
-    return startRead(conn, sessionHandle, name, elementCount, timeoutMs);
+    return startRead(msg, conn, sessionHandle, name, elementCount, timeoutMs);
 }
 
-Status Tag::write(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                  uint32_t elementCount, uint32_t timeoutMs) {
+Status Tag::write(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                  const char *name, uint32_t elementCount, uint32_t timeoutMs) {
     if (name == nullptr || strlen(name) > kMaxSymbolicName) {
         return Status::InvalidArg;
     }
@@ -33,20 +33,20 @@ Status Tag::write(TcpConnection &conn, uint32_t sessionHandle, const char *name,
     if (state_ == State::Reading || state_ == State::Writing) {
         return Status::Busy;
     }
-    return startWrite(conn, sessionHandle, name, elementCount, timeoutMs);
+    return startWrite(msg, conn, sessionHandle, name, elementCount, timeoutMs);
 }
 
-Status Tag::startRead(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                      uint32_t elementCount, uint32_t timeoutMs) {
+Status Tag::startRead(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                      const char *name, uint32_t elementCount, uint32_t timeoutMs) {
     uint8_t path[128];
     size_t pathLen = appendSymbolic(path, name);
 
     uint8_t count[2];
     putU16(count, uint16_t(elementCount));
 
-    Status st = msg_.send(conn, sessionHandle,
-                          static_cast<uint8_t>(TagService::Read),
-                          path, pathLen, count, sizeof(count), timeoutMs);
+    Status st = msg.send(conn, sessionHandle,
+                         static_cast<uint8_t>(TagService::Read),
+                         path, pathLen, count, sizeof(count), timeoutMs);
     if (st != Status::Pending) {
         return st;
     }
@@ -58,8 +58,8 @@ Status Tag::startRead(TcpConnection &conn, uint32_t sessionHandle, const char *n
     return Status::Pending;
 }
 
-Status Tag::startWrite(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                       uint32_t elementCount, uint32_t timeoutMs) {
+Status Tag::startWrite(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                       const char *name, uint32_t elementCount, uint32_t timeoutMs) {
     // Determine and validate the data length from the data type + element count.
     size_t dataLen;
     if (dataType_ == static_cast<uint8_t>(DataType::String)) {
@@ -87,9 +87,9 @@ Status Tag::startWrite(TcpConnection &conn, uint32_t sessionHandle, const char *
     memcpy(wdata + 4, data_, dataLen);
     size_t wdataLen = 4 + dataLen;
 
-    Status st = msg_.send(conn, sessionHandle,
-                          static_cast<uint8_t>(TagService::Write),
-                          path, pathLen, wdata, wdataLen, timeoutMs);
+    Status st = msg.send(conn, sessionHandle,
+                         static_cast<uint8_t>(TagService::Write),
+                         path, pathLen, wdata, wdataLen, timeoutMs);
     if (st != Status::Pending) {
         return st;
     }
@@ -97,7 +97,7 @@ Status Tag::startWrite(TcpConnection &conn, uint32_t sessionHandle, const char *
     return Status::Pending;
 }
 
-Status Tag::poll() {
+Status Tag::poll(ExplicitMessage &msg) {
     if (state_ != State::Reading && state_ != State::Writing) {
         switch (state_) {
             case State::Done:   return Status::Ok;
@@ -106,7 +106,7 @@ Status Tag::poll() {
         }
     }
 
-    Status st = msg_.poll();
+    Status st = msg.poll();
     if (st == Status::Pending) {
         return Status::Pending;
     }
@@ -115,20 +115,20 @@ Status Tag::poll() {
         return st;
     }
 
-    resultCode_ = msg_.resultCode();
+    resultCode_ = msg.resultCode();
 
     if (resultCode_ != 0) {
         state_ = State::Failed;
         return Status::Error;
     }
 
-    if (state_ == State::Reading && msg_.dataLength() >= 2) {
-        dataType_ = uint8_t(getU16(msg_.data()));
-        size_t n = msg_.dataLength() - 2;
+    if (state_ == State::Reading && msg.dataLength() >= 2) {
+        dataType_ = uint8_t(getU16(msg.data()));
+        size_t n = msg.dataLength() - 2;
         if (n > kMaxDataSize) {
             n = kMaxDataSize;
         }
-        memcpy(data_, msg_.data() + 2, n);
+        memcpy(data_, msg.data() + 2, n);
         dataLen_ = n;
     }
 
@@ -147,8 +147,13 @@ Status Tag::status() const {
     return Status::Error;
 }
 
-void Tag::abort() {
-    msg_.abort();
+void Tag::abort(ExplicitMessage &msg) {
+    // Only abort the shared message if this tag is the one using it. With a
+    // shared message, aborting an idle tag must not disturb another tag's
+    // in-flight operation.
+    if (state_ == State::Reading || state_ == State::Writing) {
+        msg.abort();
+    }
     state_ = State::Idle;
     dataLen_ = 0;
 }

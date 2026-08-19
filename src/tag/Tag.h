@@ -21,6 +21,7 @@ class TcpConnection;
  *
  * The data type is learned from a read (or set explicitly via setDataType());
  * a write requires a known data type.
+ *
  */
 class Tag {
 public:
@@ -33,19 +34,20 @@ public:
     Tag(const Tag &) = delete;
     Tag &operator=(const Tag &) = delete;
 
-    // Start a Read Tag for the named tag (elementCount elements).
-    Status read(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                uint32_t elementCount, uint32_t timeoutMs);
+    // Start a Read Tag for the named tag (elementCount elements). msg is the
+    // shared message that carries the exchange.
+    Status read(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                const char *name, uint32_t elementCount, uint32_t timeoutMs);
 
     // Start a Write Tag for the named tag using the current data buffer.
-    Status write(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                 uint32_t elementCount, uint32_t timeoutMs);
+    Status write(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                 const char *name, uint32_t elementCount, uint32_t timeoutMs);
 
-    // Advance the current read/write.
-    Status poll();
+    // Advance the current read/write using the shared message.
+    Status poll(ExplicitMessage &msg);
 
     // Abort an in-flight read/write, returning to Idle.
-    void abort();
+    void abort(ExplicitMessage &msg);
 
     // Current status (non-advancing): Ok once the last read/write completed,
     // Pending while in flight, Error on failure, NotReady if idle.
@@ -101,17 +103,16 @@ private:
         Failed,
     };
 
-    ExplicitMessage msg_;
     State state_ = State::Idle;
     uint8_t data_[kMaxDataSize];
     size_t dataLen_ = 0;
     uint8_t dataType_ = 0;
     uint8_t resultCode_ = 0;
 
-    Status startRead(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                     uint32_t elementCount, uint32_t timeoutMs);
-    Status startWrite(TcpConnection &conn, uint32_t sessionHandle, const char *name,
-                      uint32_t elementCount, uint32_t timeoutMs);
+    Status startRead(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                     const char *name, uint32_t elementCount, uint32_t timeoutMs);
+    Status startWrite(ExplicitMessage &msg, TcpConnection &conn, uint32_t sessionHandle,
+                      const char *name, uint32_t elementCount, uint32_t timeoutMs);
 
     // True if [off, off+size) lies within the data buffer.
     bool inBounds(size_t off, size_t size) const;
