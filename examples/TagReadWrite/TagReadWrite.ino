@@ -31,6 +31,7 @@ clx::Client::Config cfg;
 clx::TcpConnection conn;
 clx::Session session;
 clx::Tag tag;
+clx::ExplicitMessage msg;  // shared message (one tag operation at a time)
 
 enum class Phase : uint8_t {
     WaitEthernet, Connect, OpenSession, TagOps, CloseSession, RetryWait,
@@ -80,14 +81,14 @@ void setup() {
 void startStep() {
     clx::Status st;
     switch (step) {
-        case 0: st = tag.read(conn, session.handle(), "TestDint", 1, TAG_TIMEOUT_MS); break;
+        case 0: st = tag.read(msg, conn, session.handle(), "TestDint", 1, TAG_TIMEOUT_MS); break;
         case 1:
             tag.setInt32(0, 2026);
-            st = tag.write(conn, session.handle(), "TestDint", 1, TAG_TIMEOUT_MS);
+            st = tag.write(msg, conn, session.handle(), "TestDint", 1, TAG_TIMEOUT_MS);
             break;
-        case 2: st = tag.read(conn, session.handle(), "TestDint", 1, TAG_TIMEOUT_MS); break;
-        case 3: st = tag.read(conn, session.handle(), "TestReal", 1, TAG_TIMEOUT_MS); break;
-        case 4: st = tag.read(conn, session.handle(), "TestString", 1, TAG_TIMEOUT_MS); break;
+        case 2: st = tag.read(msg, conn, session.handle(), "TestDint", 1, TAG_TIMEOUT_MS); break;
+        case 3: st = tag.read(msg, conn, session.handle(), "TestReal", 1, TAG_TIMEOUT_MS); break;
+        case 4: st = tag.read(msg, conn, session.handle(), "TestString", 1, TAG_TIMEOUT_MS); break;
         default: st = clx::Status::Error; break;
     }
     Serial.printf("step %d -> %s\n", step, clx::statusString(st));
@@ -168,7 +169,7 @@ void loop() {
             if (!stepStarted) {
                 startStep();
             } else {
-                clx::Status st = tag.poll();
+                clx::Status st = tag.poll(msg);
                 if (st == clx::Status::Ok) {
                     finishStep();
                 } else if (st == clx::Status::Timeout || st == clx::Status::Error) {
