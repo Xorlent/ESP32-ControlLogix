@@ -36,7 +36,7 @@ enum class Service : uint8_t {
     RemoveMember = 0x1B,
 };
 
-// CIP path segment type codes (encoded in the low 3 bits of the first byte).
+// CIP path segment type codes (encoded in the high 3 bits of the first byte).
 enum : uint8_t {
     kSegmentClassId8 = 0x20,      // 8-bit class ID
     kSegmentClassId16 = 0x21,     // 16-bit class ID
