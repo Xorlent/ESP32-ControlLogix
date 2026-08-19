@@ -160,7 +160,7 @@ void startQuery() {
                       static_cast<uint8_t>(clx::Service::GetAttributeSingle),
                       path, pl, data, sizeof(data), MESSAGE_TIMEOUT_MS);
     } else {
-        st = tag.read(tcp, session.handle(), "ControllerInfo.Mode", 1, MESSAGE_TIMEOUT_MS);
+        st = tag.read(msg, tcp, session.handle(), "ControllerInfo.Mode", 1, MESSAGE_TIMEOUT_MS);
     }
     stepStarted = (st == clx::Status::Pending);
 }
@@ -284,7 +284,7 @@ void loop() {
             } else {
                 // Poll whichever query is in flight (identity or mode).
                 bool isMode = (queryIndex >= int(kIdentityAttrCount));
-                clx::Status st = isMode ? tag.poll() : msg.poll();
+                clx::Status st = isMode ? tag.poll(msg) : msg.poll();
                 if (st == clx::Status::Ok) {
                     finishQuery();
                 } else if (st == clx::Status::Timeout || st == clx::Status::Error || st == clx::Status::Closed) {
